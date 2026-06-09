@@ -77,6 +77,9 @@
  *                     - Add support for garage door/gate devices (open/close actions)
  *                     - Advanced option for locks to auto-lock and doors to auto-close when mode changes to unselected mode
  *                     - Bug fix for curent level is greater/less than desired level - Runs were skipped if switch was off
+ *  3.6.1 - 2026-06-09 - Sort hub variable options alphabetically
+ *                     - Bug fix for restoring state when "current level is greater/less than desired level" is set
+ *                     - Add safeguard for when "only run schedules during selected mode" is set but no modes are selected
  */
 
 import groovy.json.JsonOutput
@@ -88,7 +91,7 @@ import org.quartz.CronExpression
 
 def titleVersion() {
     state.name = "Schedule Manager"
-    state.version = "3.6.0"
+    state.version = "3.6.1"
 }
 
 definition(
@@ -1811,7 +1814,7 @@ void switchHandler(data) {
     def schedule = deviceConfig.schedules[data.scheduleId]
     def device = devices.find { it.id == data.deviceId }
 
-    if ((modeBool && mode.contains(location.mode)) || (!modeBool)) {
+    if ((modeBool && mode != null && mode.contains(location.mode)) || !modeBool || mode == null) {
         if ((switchActivationBool && activationSwitch.currentSwitch == activationSwitchOnOff) || (!switchActivationBool)) {
             if (!schedule.pause) { // If schedule is paused it should never be scheduled anyway. We'll still check.
                 // Check to make sure the date is correct if we're using Hub Variables
@@ -2285,6 +2288,41 @@ private restoreState(shouldUpdate = false) {
                     }
                 } else if (mostRecentSchedule.desiredState == "on") {
                     if (deviceConfig.capability == "Dimmer") {
+                        if (onlyRunWhenNotAlreadySetBool) {
+                            String comparison = (mostRecentSchedule.skipComparison ?: "select").toString().toLowerCase()
+                            if (comparison == "-") {
+                                comparison = "select"
+                            }
+                            if (["greater", "less"].contains(comparison)) {
+                                Closure<Integer> toInt = { val ->
+                                    if (val == null) {
+                                        return null
+                                    }
+                                    if (val instanceof Number) {
+                                        return (val as Number).intValue()
+                                    }
+                                    try {
+                                        return val.toString().toBigDecimal().intValue()
+                                    } catch (Exception ignored) {
+                                        return null
+                                    }
+                                }
+
+                                Integer currentLevel = toInt(dev?.currentValue("level"))
+                                Integer desiredLevel = toInt(mostRecentSchedule.desiredLevel)
+                                String currentSwitch = dev?.currentValue("switch")
+
+                                if (currentLevel != null && desiredLevel != null && currentSwitch != null) {
+                                    boolean skipRestore = currentSwitch == "on" &&
+                                                          ((comparison == "greater" && currentLevel > desiredLevel) ||
+                                                          (comparison == "less" && currentLevel < desiredLevel))
+                                    if (skipRestore) {
+                                        logDebug "Skipping restore for $dev - current level $currentLevel ${comparison == 'greater' ? '>' : '<'} desired level $desiredLevel"
+                                        return  // only skps current device
+                                    }
+                                }
+                            }
+                        }
                         if (activateOnBeforeLevelBool) {
                             dev.on()
                         }
@@ -2352,7 +2390,10 @@ private getHubVariableList() {
 
     // Create a map of variable names to their name & value concatenation
     def allVariables = getGlobalVarsByType("datetime")
-    allVariables.each { key, value ->
+    allVariables.keySet().toList().sort { a, b ->
+        a.toString().toLowerCase() <=> b.toString().toLowerCase()
+    }.each { key ->
+        def value = allVariables[key]
         variables[key] = "$key: ${value.value}"
     }
     return variables
