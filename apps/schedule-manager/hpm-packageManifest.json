@@ -1,8 +1,8 @@
 {
   "packageName": "Schedule Manager",
   "author": "Evan Callia",
-  "version": "3.6.0",
-  "releaseNotes": "- Add support for 'restoring' button device state upon mode change or hub reboot\n- Add support for locks and garage doors, including locking/closing on mode changes\nBug fix for current level greater/less than desired level - 'off' devices were always skipped",
+  "version": "3.6.1",
+  "releaseNotes": "- Sort hub variable options alphabetically\n- Bug fix for restoring state when 'current level is greater/less than desired level' is set\n- Add safeguard for when 'only run schedules during selected mode' is set but no modes are selected",
   "minimumHEVersion": "0.0.0",
   "dateReleased": "2024-11-18",
   "licenseFile": "https://raw.githubusercontent.com/evcallia/hubitat/refs/heads/main/LICENSE",
