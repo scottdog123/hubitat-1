@@ -324,7 +324,10 @@ Map<String, String> stringHubVariableOptions() {
 
     // Create a map of variable names to their name & value concatenation
     def allVariables = getGlobalVarsByType("string")
-    allVariables.each { key, value ->
+    allVariables.keySet().toList().sort { a, b ->
+        a.toString().toLowerCase() <=> b.toString().toLowerCase()
+    }.each { key ->
+        def value = allVariables[key]
         variables[key] = "$key: ${value.value}"
     }
     return variables
